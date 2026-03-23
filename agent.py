@@ -13,6 +13,14 @@ import random
 from typing import List, Tuple, Optional, Dict
 import json
 
+# FX pairs hardcoded to avoid cross-module import issues on Streamlit Cloud
+FX_PAIRS = [
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD",
+    "USDCAD", "NZDUSD", "EURGBP", "EURJPY", "GBPJPY",
+    "EURCHF", "AUDJPY", "GBPCHF", "EURAUD", "EURCAD",
+    "GBPAUD", "GBPCAD", "AUDCAD", "AUDCHF", "CADJPY"
+]
+
 # ─────────────────────────────────────────────
 # BELLMAN-FORD ARBITRAGE DETECTOR
 # ─────────────────────────────────────────────
@@ -293,7 +301,6 @@ class DQNArbitrageAgent:
             state[0] = state[1] = state[2] = 0.0
 
         # Features 3-12: volatilities of first 10 pairs
-        from src.data import FX_PAIRS
         for i, pair in enumerate(FX_PAIRS[:10]):
             if pair in tick_data and isinstance(tick_data[pair], dict):
                 state[3 + i] = min(tick_data[pair].get("vol", 0) * 10000, 1.0)
