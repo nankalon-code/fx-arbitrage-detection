@@ -22,8 +22,12 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.data import TickSimulator, build_price_matrix, FX_PAIRS
-from src.agent import DQNArbitrageAgent, BellmanFordDetector
+try:
+    from src.data import TickSimulator, build_price_matrix, FX_PAIRS
+    from src.agent import DQNArbitrageAgent, BellmanFordDetector
+except ModuleNotFoundError:
+    from data import TickSimulator, build_price_matrix, FX_PAIRS
+    from agent import DQNArbitrageAgent, BellmanFordDetector
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
