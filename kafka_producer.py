@@ -5,7 +5,7 @@ Run: python -m src.kafka_producer
 """
 import json, time, os
 from kafka import KafkaProducer
-from src.data import TickSimulator, FX_PAIRS
+from data import TickSimulator, FX_PAIRS
 
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
 
