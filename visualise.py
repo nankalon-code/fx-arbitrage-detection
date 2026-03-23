@@ -218,7 +218,7 @@ def plot_volatility_heatmap(
     show: bool = False
 ) -> plt.Figure:
     """Volatility heatmap across all pairs — shows market microstructure"""
-    from src.data import FX_PAIRS
+    from data import FX_PAIRS
 
     pairs = FX_PAIRS[:16]
     np.random.seed(7)
