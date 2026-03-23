@@ -6,8 +6,8 @@ Run: python -m src.kafka_consumer
 import json, os, time
 import redis as rd
 from kafka import KafkaConsumer
-from src.agent import BellmanFordDetector
-from src.data import build_price_matrix, FX_PAIRS
+from agent import BellmanFordDetector
+from data import build_price_matrix, FX_PAIRS
 
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
 REDIS_HOST      = os.getenv("REDIS_HOST", "localhost")
