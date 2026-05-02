@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { WsFrame, TickFrame, EngineConfig } from "../types";
 
 const isProd = import.meta.env.PROD;
-const PROD_URL = "fx-arbitrage-detection.railway.app";
+const PROD_URL = fx-arbitrage-detection-up.railway.app;
 
 const WS_URL = isProd ? `wss://${PROD_URL}/ws` : "ws://localhost:8000/ws";
 const API_URL = isProd ? `https://${PROD_URL}` : "http://localhost:8000";
