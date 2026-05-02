@@ -288,3 +288,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 pass
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+if __name__ == "__main__":
+    import uvicorn
+    print("Starting FX Arbitrage Server on port 8000...")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
