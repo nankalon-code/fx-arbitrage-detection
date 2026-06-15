@@ -83,7 +83,7 @@ cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 8000
 cd frontend && npm run dev
 ```
 
-Dashboard: **http://localhost:5173**
+Dashboard: **will be up soon**
 
 ---
 
