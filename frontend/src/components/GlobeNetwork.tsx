@@ -6,14 +6,14 @@ import type { Opportunity } from "../types";
 
 // ── Currency node positions on a sphere ─────────────────────────────────────
 const CURRENCIES = [
-  { id: "EUR", lat: 48.8, lon: 2.3, color: "#4fc3f7" },
-  { id: "USD", lat: 38.9, lon: -77.0, color: "#00ff88" },
-  { id: "JPY", lat: 35.7, lon: 139.7, color: "#ff4d6d" },
-  { id: "GBP", lat: 51.5, lon: -0.1, color: "#a78bfa" },
-  { id: "CHF", lat: 46.9, lon: 7.4, color: "#ffb300" },
-  { id: "AUD", lat: -33.9, lon: 151.2, color: "#22d3ee" },
-  { id: "CAD", lat: 45.4, lon: -75.7, color: "#f472b6" },
-  { id: "NZD", lat: -41.3, lon: 174.8, color: "#34d399" },
+  { id: "EUR", lat: 48.8, lon: 2.3, color: "#a1a1aa" },
+  { id: "USD", lat: 38.9, lon: -77.0, color: "#a1a1aa" },
+  { id: "JPY", lat: 35.7, lon: 139.7, color: "#a1a1aa" },
+  { id: "GBP", lat: 51.5, lon: -0.1, color: "#a1a1aa" },
+  { id: "CHF", lat: 46.9, lon: 7.4, color: "#a1a1aa" },
+  { id: "AUD", lat: -33.9, lon: 151.2, color: "#a1a1aa" },
+  { id: "CAD", lat: 45.4, lon: -75.7, color: "#a1a1aa" },
+  { id: "NZD", lat: -41.3, lon: 174.8, color: "#a1a1aa" },
 ];
 
 function latLonToVec3(lat: number, lon: number, radius: number): THREE.Vector3 {
@@ -45,9 +45,9 @@ function ArcLine({
     const points = curve.getPoints(32);
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const material = new THREE.LineBasicMaterial({
-      color: isArb ? "#00ff88" : "#1a2a4a",
+      color: isArb ? "#09090b" : "#e4e4e7",
       transparent: true,
-      opacity: isArb ? 0.8 : 0.15,
+      opacity: isArb ? 1.0 : 0.4,
     });
     return new THREE.Line(geometry, material);
   }, [start, end, isArb]);
@@ -55,7 +55,7 @@ function ArcLine({
   useFrame(({ clock }) => {
     if (isArb && lineObj.material instanceof THREE.LineBasicMaterial) {
       const t = clock.getElapsedTime();
-      lineObj.material.opacity = 0.4 + Math.sin(t * 4 + intensity) * 0.3;
+      lineObj.material.opacity = 0.7 + Math.sin(t * 4 + intensity) * 0.3;
     }
   });
 
@@ -120,22 +120,13 @@ function CurrencyNode({
 
   return (
     <group position={position}>
-      {/* Outer glow ring */}
-      {isArb && (
-        <mesh ref={glowRef}>
-          <sphereGeometry args={[0.18, 16, 16]} />
-          <meshBasicMaterial color="#00ff88" transparent opacity={0.15} />
-        </mesh>
-      )}
       {/* Core sphere */}
       <mesh ref={meshRef} scale={scale}>
         <sphereGeometry args={[0.08, 16, 16]} />
         <meshStandardMaterial
-          color={isArb ? "#00ff88" : color}
-          emissive={isArb ? "#00ff88" : color}
-          emissiveIntensity={isArb ? 1.5 : 0.3}
-          roughness={0.2}
-          metalness={0.8}
+          color={isArb ? "#09090b" : "#cbd5e1"}
+          roughness={0.4}
+          metalness={0.2}
         />
       </mesh>
       {/* Label */}
@@ -143,13 +134,12 @@ function CurrencyNode({
         <Text
           position={[0, 0.18, 0]}
           fontSize={0.07}
-          color={isArb ? "#00ff88" : "#94a3b8"}
+          color={isArb ? "#09090b" : "#71717a"}
           anchorX="center"
           anchorY="bottom"
-          font="https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4xD-IQ-PuZJJXxfpAO-Lf1OQk6OThxPA.woff2"
-          fontWeight={isArb ? 700 : 500}
+          fontWeight={isArb ? 800 : 500}
           outlineWidth={0.005}
-          outlineColor="#04070f"
+          outlineColor="#ffffff"
         >
           {label}
         </Text>
@@ -172,10 +162,10 @@ function WireframeGlobe() {
     <mesh ref={ref}>
       <sphereGeometry args={[2.0, 36, 24]} />
       <meshBasicMaterial
-        color="#0d1d38"
+        color="#cbd5e1"
         wireframe
         transparent
-        opacity={0.08}
+        opacity={0.3}
       />
     </mesh>
   );
@@ -191,16 +181,16 @@ function PulseRing() {
     const scale = 1 + Math.sin(t * 0.5) * 0.02;
     ref.current.scale.set(scale, scale, 1);
     (ref.current.material as THREE.MeshBasicMaterial).opacity =
-      0.03 + Math.sin(t) * 0.015;
+      0.08 + Math.sin(t) * 0.04;
   });
 
   return (
     <mesh ref={ref} rotation={[Math.PI / 2, 0, 0]}>
       <ringGeometry args={[2.05, 2.08, 64]} />
       <meshBasicMaterial
-        color="#4fc3f7"
+        color="#cbd5e1"
         transparent
-        opacity={0.04}
+        opacity={0.08}
         side={THREE.DoubleSide}
       />
     </mesh>
@@ -240,10 +230,10 @@ function AmbientParticles({ count = 200 }: { count?: number }) {
   return (
     <points ref={ref} geometry={geometry}>
       <pointsMaterial
-        color="#4fc3f7"
+        color="#a1a1aa"
         size={0.015}
         transparent
-        opacity={0.4}
+        opacity={0.5}
         sizeAttenuation
       />
     </points>
@@ -256,20 +246,18 @@ function ProfitHUD({ text }: { text: string }) {
   return (
     <Text
       position={[0, 2.6, 0]}
-      fontSize={0.1}
-      color="#00ff88"
+      fontSize={0.12}
+      color="#09090b"
       anchorX="center"
-      font="https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4xD-IQ-PuZJJXxfpAO-Lf1OQk6OThxPA.woff2"
-      fontWeight={700}
+      fontWeight={800}
       outlineWidth={0.008}
-      outlineColor="#04070f"
+      outlineColor="#ffffff"
     >
       {text}
     </Text>
   );
 }
 
-// ── Main Scene ──────────────────────────────────────────────────────────────
 function GlobeScene({
   opportunities,
 }: {
@@ -427,15 +415,15 @@ function StatsOverlay({
         style={{
           fontFamily: "var(--font-mono)",
           fontSize: 10,
-          color: "var(--text-muted)",
-          background: "rgba(4,7,15,0.7)",
+          color: "var(--text-secondary)",
+          background: "rgba(255,255,255,0.9)",
           padding: "4px 10px",
-          borderRadius: 6,
-          border: "1px solid var(--bg-border-dim)",
+          borderRadius: 4,
+          border: "1px solid var(--bg-border)",
         }}
       >
         {opportunities.length > 0 ? (
-          <span style={{ color: "var(--accent-green)" }}>
+          <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
             {opportunities.length} cycle{opportunities.length !== 1 ? "s" : ""} detected
           </span>
         ) : (
@@ -446,11 +434,11 @@ function StatsOverlay({
         style={{
           fontFamily: "var(--font-mono)",
           fontSize: 10,
-          color: "var(--text-muted)",
-          background: "rgba(4,7,15,0.7)",
+          color: "var(--text-secondary)",
+          background: "rgba(255,255,255,0.9)",
           padding: "4px 10px",
-          borderRadius: 6,
-          border: "1px solid var(--bg-border-dim)",
+          borderRadius: 4,
+          border: "1px solid var(--bg-border)",
         }}
       >
         TICK #{tickCount.toLocaleString()}
@@ -475,7 +463,8 @@ export function GlobeNetwork({ opportunities, prices, tickCount = 0 }: Props) {
         height: 420,
         borderRadius: "var(--radius-md)",
         overflow: "hidden",
-        background: "radial-gradient(ellipse at center, #060d1e 0%, #04070f 70%)",
+        background: "radial-gradient(ellipse at center, #ffffff 0%, #f4f4f5 70%)",
+        border: "1px solid var(--bg-border)",
       }}
     >
       <Canvas
@@ -497,8 +486,8 @@ export function GlobeNetwork({ opportunities, prices, tickCount = 0 }: Props) {
           right: 12,
           fontFamily: "var(--font-mono)",
           fontSize: 9,
-          color: "var(--accent-blue)",
-          opacity: 0.5,
+          color: "var(--text-muted)",
+          opacity: 0.8,
           letterSpacing: "1px",
           textTransform: "uppercase",
           pointerEvents: "none",

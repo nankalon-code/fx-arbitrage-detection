@@ -61,31 +61,25 @@ export function NetworkGraph({ opportunities }: Props) {
     });
     linksRef.current = links;
 
-    const defs = svg.append("defs");
-
-    defs.append("marker").attr("id", "arrow-normal")
-      .attr("viewBox", "0 -4 8 8").attr("refX", 22).attr("refY", 0)
-      .attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto")
-      .append("path").attr("d", "M0,-4L8,0L0,4").attr("fill", "#1a2a4a");
-
-    defs.append("marker").attr("id", "arrow-arb")
-      .attr("viewBox", "0 -4 8 8").attr("refX", 22).attr("refY", 0)
-      .attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto")
-      .append("path").attr("d", "M0,-4L8,0L0,4").attr("fill", "#00ff88");
-
-    const filter = defs.append("filter").attr("id", "glow");
-    filter.append("feGaussianBlur").attr("stdDeviation", "3").attr("result", "blur");
-    const merge = filter.append("feMerge");
-    merge.append("feMergeNode").attr("in", "blur");
-    merge.append("feMergeNode").attr("in", "SourceGraphic");
-
-    const g = svg.append("g").attr("class", "graph-container");
-
-    g.append("g").attr("class", "links-group").selectAll("line")
-      .data(links).join("line")
-      .attr("class", "graph-link")
-      .attr("stroke", "#1a2a4a").attr("stroke-width", 0.8)
-      .attr("stroke-opacity", 0.5)
+    const defs = svg.append("defs");
+
+    defs.append("marker").attr("id", "arrow-normal")
+      .attr("viewBox", "0 -4 8 8").attr("refX", 22).attr("refY", 0)
+      .attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto")
+      .append("path").attr("d", "M0,-4L8,0L0,4").attr("fill", "#e4e4e7");
+
+    defs.append("marker").attr("id", "arrow-arb")
+      .attr("viewBox", "0 -4 8 8").attr("refX", 22).attr("refY", 0)
+      .attr("markerWidth", 5).attr("markerHeight", 5).attr("orient", "auto")
+      .append("path").attr("d", "M0,-4L8,0L0,4").attr("fill", "#09090b");
+
+    const g = svg.append("g").attr("class", "graph-container");
+
+    g.append("g").attr("class", "links-group").selectAll("line")
+      .data(links).join("line")
+      .attr("class", "graph-link")
+      .attr("stroke", "#e4e4e7").attr("stroke-width", 0.8)
+      .attr("stroke-opacity", 0.6)
       .attr("marker-end", "url(#arrow-normal)");
 
     const nodeG = g.append("g").attr("class", "nodes-group").selectAll("g")
@@ -103,13 +97,13 @@ export function NetworkGraph({ opportunities }: Props) {
           }) as any
       );
 
-    nodeG.append("circle").attr("r", 16)
-      .attr("fill", "rgba(10,22,40,0.9)").attr("stroke", "#1a2a4a").attr("stroke-width", 1);
-
-    nodeG.append("text").text((d: Node) => d.id)
-      .attr("text-anchor", "middle").attr("dominant-baseline", "central")
-      .attr("font-family", "JetBrains Mono, monospace")
-      .attr("font-size", "9px").attr("font-weight", "500").attr("fill", "#94a3b8")
+    nodeG.append("circle").attr("r", 16)
+      .attr("fill", "#ffffff").attr("stroke", "#e4e4e7").attr("stroke-width", 1);
+
+    nodeG.append("text").text((d: Node) => d.id)
+      .attr("text-anchor", "middle").attr("dominant-baseline", "central")
+      .attr("font-family", "JetBrains Mono, monospace")
+      .attr("font-size", "9px").attr("font-weight", "600").attr("fill", "#52525b")
       .attr("pointer-events", "none");
 
     // Tooltip
@@ -119,16 +113,16 @@ export function NetworkGraph({ opportunities }: Props) {
       const rateText = Object.entries(rates).slice(0, 5).map(([k, v]) => `${d.id}→${k}: ${v}`).join("\n");
       tooltip.style("display", "block")
         .style("left", (event.pageX + 12) + "px").style("top", (event.pageY - 12) + "px")
-        .html(`<strong style="color:var(--accent-blue)">${d.id}</strong><br/><pre style="margin:4px 0 0;font-size:10px;color:var(--text-muted)">${rateText}</pre>`);
+        .html(`<strong style="color:var(--text-primary);font-weight:700">${d.id}</strong><br/><pre style="margin:4px 0 0;font-size:10px;color:var(--text-muted)">${rateText}</pre>`);
     }).on("mousemove", function (event: MouseEvent) {
       tooltip.style("left", (event.pageX + 12) + "px").style("top", (event.pageY - 12) + "px");
     }).on("mouseout", () => { tooltip.style("display", "none"); });
 
-    // Profit label
-    svg.append("text").attr("class", "arb-label")
-      .attr("x", width / 2).attr("y", 24).attr("text-anchor", "middle")
-      .attr("font-family", "JetBrains Mono, monospace").attr("font-size", "13px")
-      .attr("font-weight", "700").attr("fill", "#00ff88").text("");
+    // Profit label
+    svg.append("text").attr("class", "arb-label")
+      .attr("x", width / 2).attr("y", 24).attr("text-anchor", "middle")
+      .attr("font-family", "JetBrains Mono, monospace").attr("font-size", "13px")
+      .attr("font-weight", "700").attr("fill", "#09090b").text("");
 
     const sim = d3.forceSimulation<Node>(nodes)
       .force("link", d3.forceLink<Node, Link>(links).id((d: Node) => d.id).distance(90).strength(0.4))
@@ -175,42 +169,39 @@ export function NetworkGraph({ opportunities }: Props) {
       }
     }
 
-    // Update link colors
-    svg.select(".links-group").selectAll<SVGLineElement, Link>("line")
-      .attr("stroke", (d: any) => {
-        const key = `${typeof d.source === 'object' ? d.source.id : d.source}-${typeof d.target === 'object' ? d.target.id : d.target}`;
-        return arbEdgeSet.has(key) ? "#00ff88" : "#1a2a4a";
-      })
-      .attr("stroke-width", (d: any) => {
-        const key = `${typeof d.source === 'object' ? d.source.id : d.source}-${typeof d.target === 'object' ? d.target.id : d.target}`;
-        return arbEdgeSet.has(key) ? 2.5 : 0.8;
-      })
-      .attr("stroke-opacity", (d: any) => {
-        const key = `${typeof d.source === 'object' ? d.source.id : d.source}-${typeof d.target === 'object' ? d.target.id : d.target}`;
-        return arbEdgeSet.has(key) ? 1 : 0.5;
-      })
-      .attr("marker-end", (d: any) => {
-        const key = `${typeof d.source === 'object' ? d.source.id : d.source}-${typeof d.target === 'object' ? d.target.id : d.target}`;
-        return arbEdgeSet.has(key) ? "url(#arrow-arb)" : "url(#arrow-normal)";
-      })
-      .attr("filter", (d: any) => {
-        const key = `${typeof d.source === 'object' ? d.source.id : d.source}-${typeof d.target === 'object' ? d.target.id : d.target}`;
-        return arbEdgeSet.has(key) ? "url(#glow)" : null;
-      });
-
-    // Update node colors
-    svg.select(".nodes-group").selectAll<SVGGElement, Node>("g").each(function (d: Node) {
-      const isArb = arbCurrencies.has(d.id);
-      d3.select(this).select("circle")
-        .attr("r", isArb ? 22 : 16)
-        .attr("fill", isArb ? "rgba(0,255,136,0.15)" : "rgba(10,22,40,0.9)")
-        .attr("stroke", isArb ? "#00ff88" : "#1a2a4a")
-        .attr("stroke-width", isArb ? 2 : 1)
-        .attr("filter", isArb ? "url(#glow)" : null);
-      d3.select(this).select("text")
-        .attr("font-size", isArb ? "11px" : "9px")
-        .attr("font-weight", isArb ? "700" : "500")
-        .attr("fill", isArb ? "#00ff88" : "#94a3b8");
+    // Update link colors
+    svg.select(".links-group").selectAll<SVGLineElement, Link>("line")
+      .attr("stroke", (d: any) => {
+        const key = `${typeof d.source === 'object' ? d.source.id : d.source}-${typeof d.target === 'object' ? d.target.id : d.target}`;
+        return arbEdgeSet.has(key) ? "#09090b" : "#e4e4e7";
+      })
+      .attr("stroke-width", (d: any) => {
+        const key = `${typeof d.source === 'object' ? d.source.id : d.source}-${typeof d.target === 'object' ? d.target.id : d.target}`;
+        return arbEdgeSet.has(key) ? 2.0 : 0.8;
+      })
+      .attr("stroke-opacity", (d: any) => {
+        const key = `${typeof d.source === 'object' ? d.source.id : d.source}-${typeof d.target === 'object' ? d.target.id : d.target}`;
+        return arbEdgeSet.has(key) ? 1.0 : 0.6;
+      })
+      .attr("marker-end", (d: any) => {
+        const key = `${typeof d.source === 'object' ? d.source.id : d.source}-${typeof d.target === 'object' ? d.target.id : d.target}`;
+        return arbEdgeSet.has(key) ? "url(#arrow-arb)" : "url(#arrow-normal)";
+      })
+      .attr("filter", null);
+
+    // Update node colors
+    svg.select(".nodes-group").selectAll<SVGGElement, Node>("g").each(function (d: Node) {
+      const isArb = arbCurrencies.has(d.id);
+      d3.select(this).select("circle")
+        .attr("r", isArb ? 20 : 16)
+        .attr("fill", isArb ? "#f4f4f5" : "#ffffff")
+        .attr("stroke", isArb ? "#09090b" : "#e4e4e7")
+        .attr("stroke-width", isArb ? 2 : 1)
+        .attr("filter", null);
+      d3.select(this).select("text")
+        .attr("font-size", isArb ? "10px" : "9px")
+        .attr("font-weight", isArb ? "700" : "600")
+        .attr("fill", isArb ? "#09090b" : "#52525b");
     });
 
     // Update label

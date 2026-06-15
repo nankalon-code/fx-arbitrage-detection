@@ -40,16 +40,16 @@ export default function App() {
           display: "none",
           position: "fixed",
           zIndex: 9999,
-          background: "rgba(10,22,40,0.97)",
+          background: "#ffffff",
           border: "1px solid var(--bg-border)",
-          borderRadius: 8,
+          borderRadius: 4,
           padding: "8px 12px",
           fontFamily: "var(--font-mono)",
           fontSize: 11,
           color: "var(--text-primary)",
           pointerEvents: "none",
           maxWidth: 220,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
         }}
       />
 

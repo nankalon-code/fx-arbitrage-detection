@@ -44,12 +44,12 @@ function ParticleField({ count = 300 }: { count?: number }) {
   return (
     <points ref={ref} geometry={geometry}>
       <pointsMaterial
-        color="#4fc3f7"
+        color="#cbd5e1"
         size={0.03}
         transparent
-        opacity={0.25}
+        opacity={0.3}
         sizeAttenuation
-        blending={THREE.AdditiveBlending}
+        blending={THREE.NormalBlending}
         depthWrite={false}
       />
     </points>
@@ -64,14 +64,14 @@ function DataGrid() {
       ref.current.rotation.x = Math.PI / 2;
       ref.current.position.y = -3;
       const mat = ref.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = 0.04 + Math.sin(clock.getElapsedTime() * 0.3) * 0.01;
+      mat.opacity = 0.08 + Math.sin(clock.getElapsedTime() * 0.3) * 0.02;
     }
   });
 
   return (
     <mesh ref={ref}>
       <planeGeometry args={[30, 30, 30, 30]} />
-      <meshBasicMaterial color="#4fc3f7" wireframe transparent opacity={0.04} />
+      <meshBasicMaterial color="#e4e4e7" wireframe transparent opacity={0.08} />
     </mesh>
   );
 }
@@ -90,7 +90,7 @@ function FloatingLines() {
       const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
       result.push({
         points: curve.getPoints(50),
-        color: i % 2 === 0 ? "#00ff88" : "#4fc3f7",
+        color: "#cbd5e1",
       });
     }
     return result;
@@ -107,7 +107,7 @@ function FloatingLines() {
       const geo = new THREE.BufferGeometry();
       const arr = new Float32Array(l.points.flatMap((p) => [p.x, p.y, p.z]));
       geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
-      const mat = new THREE.LineBasicMaterial({ color: l.color, transparent: true, opacity: 0.04 });
+      const mat = new THREE.LineBasicMaterial({ color: l.color, transparent: true, opacity: 0.1 });
       return new THREE.Line(geo, mat);
     });
   }, [lines]);
