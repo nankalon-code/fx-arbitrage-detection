@@ -171,7 +171,7 @@ export function NetworkGraph({ opportunities }: Props) {
         for (let i = 0; i < best.path.length - 1; i++) {
           arbEdgeSet.add(`${best.path[i]}-${best.path[i + 1]}`);
         }
-        labelText = `⚡ Best: +${best.profit_bps.toFixed(1)} bps  ·  ${best.path.join(" → ")}`;
+        labelText = `Best: +${best.profit_bps.toFixed(1)} bps | ${best.path.join(" -> ")}`;
       }
     }
 
