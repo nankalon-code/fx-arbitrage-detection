@@ -12,6 +12,9 @@ from collections import deque, namedtuple
 import random
 from typing import List, Tuple, Optional, Dict
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 # FX pairs hardcoded to avoid cross-module import issues on Streamlit Cloud
 FX_PAIRS = [
@@ -53,6 +56,9 @@ class BellmanFordDetector:
         [{"path": ["EUR","USD","JPY","EUR"], "profit_bps": 12.3, "profit_pct": 0.00123}]
         """
         n = len(currencies)
+        if n == 0:
+            return []
+
         opportunities = []
 
         # Run Bellman-Ford from each source currency
@@ -244,6 +250,9 @@ class DQNArbitrageAgent:
 
     ACTIONS = {0: "HOLD", 1: "EXECUTE", 2: "CLOSE"}
 
+    MAX_LOSS_HISTORY = 2000
+    MAX_REWARD_HISTORY = 2000
+
     def __init__(
         self,
         state_dim: int = 20,
@@ -255,6 +264,7 @@ class DQNArbitrageAgent:
         epsilon_decay: int = 10_000,
         batch_size: int = 64,
         target_update_freq: int = 500,
+        scheduler_step_size: int = 5000,
         device: str = "auto"
     ):
         self.state_dim = state_dim
@@ -265,6 +275,7 @@ class DQNArbitrageAgent:
         self.epsilon_decay = epsilon_decay
         self.batch_size = batch_size
         self.target_update_freq = target_update_freq
+        self.scheduler_step_size = scheduler_step_size
         self.steps = 0
 
         self.device = torch.device(
@@ -277,13 +288,18 @@ class DQNArbitrageAgent:
         self.target_net.eval()
 
         self.optimizer = optim.AdamW(self.policy_net.parameters(), lr=lr, weight_decay=1e-5)
-        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=5000, gamma=0.5)
+        self.scheduler = optim.lr_scheduler.StepLR(
+            self.optimizer,
+            step_size=scheduler_step_size,
+            gamma=0.5
+        )
         self.buffer = ReplayBuffer()
-        self.loss_history = []
-        self.reward_history = []
+        self.loss_history: List[float] = []
+        self.reward_history: List[float] = []
 
-        print(f"DQN Agent on {self.device} | State: {state_dim} | Actions: {action_dim}")
-        print(f"Parameters: {sum(p.numel() for p in self.policy_net.parameters()):,}")
+        param_count = sum(p.numel() for p in self.policy_net.parameters())
+        logger.info(f"DQN Agent on {self.device} | State: {state_dim} | Actions: {action_dim}")
+        logger.info(f"Parameters: {param_count:,}")
 
     def encode_state(self, tick_data: Dict, arb_opportunities: List[Dict]) -> np.ndarray:
         """
@@ -294,9 +310,9 @@ class DQNArbitrageAgent:
         # Features 0-4: top arb opportunity stats
         if arb_opportunities:
             best = arb_opportunities[0]
-            state[0] = min(best["profit_bps"] / 50.0, 1.0)   # normalized profit
-            state[1] = best["legs"] / 5.0                      # normalized leg count
-            state[2] = min(len(arb_opportunities) / 10.0, 1.0) # opportunity density
+            state[0] = min(best.get("profit_bps", 0) / 50.0, 1.0)   # normalized profit
+            state[1] = best.get("legs", 0) / 5.0                     # normalized leg count
+            state[2] = min(len(arb_opportunities) / 10.0, 1.0)       # opportunity density
         else:
             state[0] = state[1] = state[2] = 0.0
 
@@ -342,15 +358,15 @@ class DQNArbitrageAgent:
         position: bool
     ) -> Tuple[float, Dict]:
         """Reward shaping for arbitrage execution"""
-        info = {}
+        info: Dict = {}
         if action == 1:  # EXECUTE
             if arb_opportunities:
                 best = arb_opportunities[0]
-                raw_profit = best["profit_bps"]
+                raw_profit = best.get("profit_bps", 0)
                 spread_cost = 2.0  # ~2bps typical round-trip
                 net = raw_profit - spread_cost
                 reward = net / 10.0  # scale to ~[-1, 1]
-                info = {"executed": True, "profit_bps": net, "path": best["path"]}
+                info = {"executed": True, "profit_bps": net, "path": best.get("path", [])}
             else:
                 reward = -0.5  # penalty for phantom execution
                 info = {"executed": False, "reason": "no_opportunity"}
@@ -368,6 +384,9 @@ class DQNArbitrageAgent:
     def store(self, state, action, reward, next_state, done):
         self.buffer.push(state, action, reward, next_state, done)
         self.reward_history.append(reward)
+        # Cap history to prevent memory leak
+        if len(self.reward_history) > self.MAX_REWARD_HISTORY:
+            self.reward_history = self.reward_history[-self.MAX_REWARD_HISTORY:]
 
     def train_step(self) -> Optional[float]:
         if len(self.buffer) < self.batch_size:
@@ -393,14 +412,22 @@ class DQNArbitrageAgent:
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)
         self.optimizer.step()
-        self.scheduler.step()
 
         self.steps += 1
+
+        # Step LR scheduler only at appropriate intervals
+        if self.steps % self.scheduler_step_size == 0:
+            self.scheduler.step()
+
         if self.steps % self.target_update_freq == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
 
         loss_val = loss.item()
         self.loss_history.append(loss_val)
+        # Cap history to prevent memory leak
+        if len(self.loss_history) > self.MAX_LOSS_HISTORY:
+            self.loss_history = self.loss_history[-self.MAX_LOSS_HISTORY:]
+
         return loss_val
 
     def save(self, path: str):
@@ -413,22 +440,30 @@ class DQNArbitrageAgent:
             "loss_history": self.loss_history[-1000:],
             "reward_history": self.reward_history[-1000:],
         }, path)
-        print(f"Model saved to {path}")
+        logger.info(f"Model saved to {path}")
 
     def load(self, path: str):
-        ckpt = torch.load(path, map_location=self.device)
+        ckpt = torch.load(path, map_location=self.device, weights_only=False)
         self.policy_net.load_state_dict(ckpt["policy_state"])
         self.target_net.load_state_dict(ckpt["target_state"])
         self.optimizer.load_state_dict(ckpt["optimizer_state"])
-        self.steps = ckpt["steps"]
-        self.epsilon = ckpt["epsilon"]
+        self.steps = ckpt.get("steps", 0)
+        self.epsilon = ckpt.get("epsilon", 0.05)
         self.loss_history = ckpt.get("loss_history", [])
         self.reward_history = ckpt.get("reward_history", [])
-        print(f"Model loaded from {path} (step {self.steps})")
+        logger.info(f"Model loaded from {path} (step {self.steps})")
 
     def get_stats(self) -> Dict:
         if not self.reward_history:
-            return {}
+            return {
+                "steps": self.steps,
+                "epsilon": round(self.epsilon, 4),
+                "mean_reward_500": 0,
+                "total_reward": 0,
+                "mean_loss_100": 0,
+                "buffer_size": len(self.buffer),
+                "sharpe_500": 0,
+            }
         rewards = np.array(self.reward_history[-500:])
         return {
             "steps": self.steps,

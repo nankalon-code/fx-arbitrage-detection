@@ -1,4 +1,5 @@
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
+import { useMemo } from "react";
 
 interface Props {
   pnlHistory: number[];
@@ -25,26 +26,30 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export function PnLChart({ pnlHistory }: Props) {
+  const data = useMemo(
+    () => pnlHistory.map((v, i) => ({ tick: i, pnl: v })),
+    [pnlHistory]
+  );
+
   if (pnlHistory.length < 2) {
     return (
       <div className="empty-state">
-        <div className="empty-icon">📈</div>
         <div className="empty-text">PnL curve will appear once the engine starts trading.</div>
       </div>
     );
   }
 
-  const data = pnlHistory.map((v, i) => ({ tick: i, pnl: v }));
   const latest = pnlHistory[pnlHistory.length - 1];
   const isPositive = latest >= 0;
   const color = isPositive ? "#00ff88" : "#ff4d6d";
+  const gradientId = "pnlGrad-unique";
 
   return (
     <div style={{ width: "100%", height: 280 }}>
       <ResponsiveContainer>
         <AreaChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
           <defs>
-            <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor={color} stopOpacity={0.2} />
               <stop offset="95%" stopColor={color} stopOpacity={0.02} />
             </linearGradient>
@@ -57,15 +62,15 @@ export function PnLChart({ pnlHistory }: Props) {
             axisLine={false}
             tickLine={false}
           />
+          <ReferenceLine y={0} stroke="rgba(255,255,255,0.1)" strokeDasharray="3 3" />
           <Tooltip content={<CustomTooltip />} />
           <Area
             type="monotone"
             dataKey="pnl"
             stroke={color}
             strokeWidth={2}
-            fill="url(#pnlGrad)"
+            fill={`url(#${gradientId})`}
             dot={false}
-            animationDuration={200}
             isAnimationActive={false}
           />
         </AreaChart>

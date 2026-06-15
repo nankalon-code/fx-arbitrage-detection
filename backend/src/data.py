@@ -9,7 +9,7 @@ import time
 import random
 import requests
 from datetime import datetime, timedelta
-from typing import Generator, Dict, List
+from typing import Generator, Dict, List, Tuple
 import yfinance as yf
 
 
@@ -93,8 +93,10 @@ class TickSimulator:
         EUR -> USD -> JPY -> EUR with mis-pricing
         """
         # Slightly mis-price EURJPY relative to EURUSD * USDJPY
-        eurusd = self.prices["EURUSD"]
-        usdjpy = self.prices["USDJPY"]
+        eurusd = self.prices.get("EURUSD")
+        usdjpy = self.prices.get("USDJPY")
+        if eurusd is None or usdjpy is None:
+            return
         theoretical_eurjpy = eurusd * usdjpy
         # Inject 3-8 pip deviation
         deviation = random.uniform(0.03, 0.08)
@@ -177,13 +179,21 @@ class ExchangeRateAPI:
         return matrix
 
 
-def build_price_matrix(tick: Dict, pairs: List[str] = None) -> np.ndarray:
+def build_price_matrix(
+    tick: Dict,
+    pairs: List[str] = None
+) -> Tuple[np.ndarray, List[str], Dict[str, int]]:
     """
     Convert a tick snapshot into an NxN log-price matrix
-    for Bellman-Ford arbitrage detection
+    for Bellman-Ford arbitrage detection.
+
+    Returns:
+        log_matrix: NxN numpy array of log exchange rates
+        currencies: list of currency codes found
+        idx: dict mapping currency code -> matrix index
     """
     pairs = pairs or FX_PAIRS[:10]
-    currencies = list(set(
+    currencies = sorted(set(
         [p[:3] for p in pairs] + [p[3:] for p in pairs]
     ))
     n = len(currencies)
@@ -193,10 +203,15 @@ def build_price_matrix(tick: Dict, pairs: List[str] = None) -> np.ndarray:
     for pair in pairs:
         if pair not in tick:
             continue
+        tick_data = tick[pair]
+        if not isinstance(tick_data, dict) or "mid" not in tick_data:
+            continue
         b, q = pair[:3], pair[3:]
         if b not in idx or q not in idx:
             continue
-        mid = tick[pair]["mid"]
+        mid = tick_data["mid"]
+        if mid <= 0:
+            continue
         i, j = idx[b], idx[q]
         matrix[i][j] = np.log(mid)
         matrix[j][i] = -np.log(mid)

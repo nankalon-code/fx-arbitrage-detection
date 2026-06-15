@@ -5,9 +5,10 @@ interface Props {
   colorClass?: "green" | "blue" | "amber" | "red" | "purple";
   positive?: boolean;
   negative?: boolean;
+  isLive?: boolean;
 }
 
-export function MetricCard({ label, value, sub, colorClass, positive, negative }: Props) {
+export function MetricCard({ label, value, sub, colorClass, positive, negative, isLive }: Props) {
   let cardClass = "metric-card";
   if (positive) cardClass += " positive";
   if (negative) cardClass += " negative";
@@ -17,7 +18,10 @@ export function MetricCard({ label, value, sub, colorClass, positive, negative }
 
   return (
     <div className={cardClass}>
-      <div className="metric-label">{label}</div>
+      <div className="metric-label">
+        {isLive && <span className="live-dot" />}
+        {label}
+      </div>
       <div className={valClass}>{value}</div>
       {sub && <div className="metric-sub">{sub}</div>}
     </div>

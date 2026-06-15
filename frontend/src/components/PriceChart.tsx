@@ -1,31 +1,37 @@
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
+import { useMemo } from "react";
 
 interface Props {
   priceChart: Record<string, number[]>;
 }
 
-const COLORS = ["#4fc3f7", "#00ff88", "#ffb300", "#a78bfa", "#ff4d6d", "#64748b"];
+const COLORS = ["#4fc3f7", "#00ff88", "#ffb300", "#a78bfa", "#ff4d6d", "#22d3ee"];
 
 export function PriceChart({ priceChart }: Props) {
-  const pairs = Object.keys(priceChart).filter(p => (priceChart[p]?.length ?? 0) > 1);
+  const pairs = useMemo(
+    () => Object.keys(priceChart).filter(p => (priceChart[p]?.length ?? 0) > 1),
+    [priceChart]
+  );
+
+  const data = useMemo(() => {
+    if (pairs.length === 0) return [];
+    const maxLen = Math.max(...pairs.map(p => priceChart[p].length));
+    return Array.from({ length: maxLen }, (_, i) => {
+      const point: Record<string, number | null> = { tick: i };
+      pairs.forEach(p => {
+        point[p] = priceChart[p]?.[i] ?? null;
+      });
+      return point;
+    });
+  }, [priceChart, pairs]);
 
   if (pairs.length === 0) {
     return (
       <div className="empty-state">
-        <div className="empty-icon">💱</div>
         <div className="empty-text">Price feeds will appear once the engine starts.</div>
       </div>
     );
   }
-
-  const maxLen = Math.max(...pairs.map(p => priceChart[p].length));
-  const data = Array.from({ length: maxLen }, (_, i) => {
-    const point: Record<string, number | null> = { tick: i };
-    pairs.forEach(p => {
-      point[p] = priceChart[p][i] ?? null;
-    });
-    return point;
-  });
 
   return (
     <div style={{ width: "100%", height: 280 }}>

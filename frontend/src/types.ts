@@ -6,6 +6,10 @@ export interface Metrics {
   trades: number;
   win_rate: number;
   epsilon: number;
+  uptime?: number;
+  throughput?: number;
+  fill_rate?: number;
+  n_pairs?: number;
 }
 
 export interface ArbEntry {
@@ -75,3 +79,5 @@ export interface EngineConfig {
   arb_prob: number;
   speed: number;
 }
+
+export type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error";

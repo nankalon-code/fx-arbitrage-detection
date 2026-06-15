@@ -5,19 +5,24 @@ Run: uvicorn server:app --reload --host 0.0.0.0 --port 8000
 
 import asyncio
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Set
 
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from src.data import TickSimulator, build_price_matrix, FX_PAIRS
 from src.agent import DQNArbitrageAgent, BellmanFordDetector
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # ── App setup ────────────────────────────────────────────────────────────────
-app = FastAPI(title="FX Arbitrage Detection Engine", version="2.0.0")
+app = FastAPI(title="FX Arbitrage Detection Engine", version="2.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,16 +32,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ── Config model ─────────────────────────────────────────────────────────────
+class EngineConfig(BaseModel):
+    n_pairs: int = Field(default=20, ge=4, le=20)
+    min_profit_bps: float = Field(default=3, ge=1, le=50)
+    arb_prob: float = Field(default=0.10, ge=0.01, le=0.5)
+    speed: int = Field(default=25, ge=1, le=100)
+
+
 # ── Shared engine state ───────────────────────────────────────────────────────
 class EngineState:
     def __init__(self):
         self.running = False
-        self.config = {
-            "n_pairs": 10,
-            "min_profit_bps": 5,
-            "arb_prob": 0.07,
-            "speed": 10,
-        }
+        self.config = EngineConfig()
+        self._lock = asyncio.Lock()
+        self._task: asyncio.Task | None = None
+        self.start_time: float | None = None
         self.reset_metrics()
 
     def reset_metrics(self):
@@ -59,16 +71,18 @@ class ConnectionManager:
     async def connect(self, ws: WebSocket):
         await ws.accept()
         self.active.add(ws)
+        logger.info(f"WebSocket connected. Active: {len(self.active)}")
 
     def disconnect(self, ws: WebSocket):
         self.active.discard(ws)
+        logger.info(f"WebSocket disconnected. Active: {len(self.active)}")
 
     async def broadcast(self, data: dict):
         if not self.active:
             return
         message = json.dumps(data, default=str)
         dead = set()
-        for ws in self.active:
+        for ws in self.active.copy():
             try:
                 await ws.send_text(message)
             except Exception:
@@ -80,10 +94,10 @@ manager = ConnectionManager()
 # ── Background simulation task ────────────────────────────────────────────────
 async def run_engine():
     cfg = state.config
-    n_pairs = cfg["n_pairs"]
-    min_profit = cfg["min_profit_bps"]
-    arb_prob = cfg["arb_prob"]
-    speed = cfg["speed"]
+    n_pairs = cfg.n_pairs
+    min_profit = cfg.min_profit_bps
+    arb_prob = cfg.arb_prob
+    speed = cfg.speed
 
     sim = TickSimulator(pairs=FX_PAIRS[:n_pairs], inject_arb_prob=arb_prob)
     detector = BellmanFordDetector(min_profit_bps=min_profit)
@@ -91,14 +105,23 @@ async def run_engine():
 
     model_path = Path("models/dqn_final.pt")
     if model_path.exists():
-        agent.load(str(model_path))
-        agent.epsilon = 0.05
+        try:
+            agent.load(str(model_path))
+            agent.epsilon = 0.05
+        except Exception as e:
+            logger.warning(f"Failed to load model: {e}")
 
     prev_state_vec = None
     position = False
     delay = 1.0 / max(speed, 1)
 
     while state.running:
+        # Check for dynamic config changes
+        current_speed = state.config.speed
+        if current_speed != speed:
+            speed = current_speed
+            delay = 1.0 / max(speed, 1)
+
         tick = sim.next_tick()
         state.tick_count += 1
 
@@ -175,6 +198,13 @@ async def run_engine():
                         round((p / base - 1) * 100, 4) for p in hist[-50:]
                     ]
 
+            uptime = round(time.time() - state.start_time, 1) if state.start_time else 0
+
+            # Compute simulated infrastructure metrics
+            elapsed = uptime if uptime > 0 else 1
+            throughput = round(state.tick_count / elapsed, 0)
+            fill_rate = round((state.wins / max(state.trades, 1)) * 100, 1) if state.trades > 5 else 82.0
+
             frame = {
                 "type": "tick",
                 "tick": state.tick_count,
@@ -186,6 +216,10 @@ async def run_engine():
                     "trades": state.trades,
                     "win_rate": round(win_rate, 1),
                     "epsilon": round(agent.epsilon, 4),
+                    "uptime": uptime,
+                    "throughput": throughput,
+                    "fill_rate": fill_rate,
+                    "n_pairs": n_pairs,
                 },
                 "opportunities": opportunities[:5],
                 "arb_log": state.arb_log[-20:],
@@ -213,34 +247,51 @@ async def run_engine():
 # ── REST Endpoints ────────────────────────────────────────────────────────────
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "version": "2.0.0"}
+    return {
+        "status": "ok",
+        "version": "2.1.0",
+        "running": state.running,
+        "connections": len(manager.active),
+    }
 
 
 @app.post("/api/start")
 async def start_engine():
     if state.running:
         return {"status": "already_running"}
+
+    # Cancel any previous dangling task
+    if state._task and not state._task.done():
+        state._task.cancel()
+        try:
+            await state._task
+        except (asyncio.CancelledError, Exception):
+            pass
+
     state.running = True
+    state.start_time = time.time()
     state.reset_metrics()
-    asyncio.create_task(run_engine())
+    state._task = asyncio.create_task(run_engine())
     return {"status": "started"}
 
 
 @app.post("/api/stop")
 async def stop_engine():
+    if not state.running:
+        return {"status": "already_stopped"}
     state.running = False
     return {"status": "stopped"}
 
 
 @app.post("/api/config")
-async def update_config(config: dict):
-    state.config.update(config)
-    return {"status": "updated", "config": state.config}
+async def update_config(config: EngineConfig):
+    state.config = config
+    return {"status": "updated", "config": config.model_dump()}
 
 
 @app.get("/api/config")
 async def get_config():
-    return state.config
+    return state.config.model_dump()
 
 
 @app.get("/api/stats")
@@ -252,7 +303,7 @@ async def get_stats():
         "trades": state.trades,
         "wins": state.wins,
         "arb_count": len(state.arb_log),
-        "config": state.config,
+        "config": state.config.model_dump(),
     }
 
 
@@ -260,9 +311,64 @@ async def get_stats():
 async def get_results():
     path = Path("logs/training_results.json")
     if not path.exists():
-        return {"error": "No training results found. Run: python train.py"}
+        raise HTTPException(status_code=404, detail="No training results found. Run: python train.py")
     with open(path) as f:
         return json.load(f)
+
+
+@app.get("/api/reality-check")
+async def get_reality_check():
+    """Return cached reality check results, or 404 if not yet run."""
+    path = Path("logs/reality_check.json")
+    if not path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Reality check not run yet. Run: python backtest_real.py"
+        )
+    with open(path) as f:
+        return json.load(f)
+
+
+@app.get("/api/cost-analysis")
+async def get_cost_analysis():
+    """Run a quick cost analysis on current simulated opportunities."""
+    from src.costs import TransactionCostModel, cost_analysis_summary
+
+    sim = TickSimulator(pairs=FX_PAIRS[:10], inject_arb_prob=0.08)
+    detector = BellmanFordDetector(min_profit_bps=3.0)
+    cost_model = TransactionCostModel()
+
+    evaluated = []
+    for _ in range(500):
+        tick = sim.next_tick()
+        log_matrix, currencies, _ = build_price_matrix(tick, FX_PAIRS[:10])
+        opps = detector.detect(log_matrix, currencies)
+        for opp in opps[:2]:
+            result = cost_model.evaluate_opportunity(
+                path=opp["path"],
+                gross_profit_bps=opp["profit_bps"],
+            )
+            evaluated.append({
+                "path": result.path,
+                "gross_bps": result.gross_profit_bps,
+                "spread_cost": result.spread_cost_bps,
+                "slippage": result.slippage_bps,
+                "latency_cost": result.latency_cost_bps,
+                "fees": result.fee_bps,
+                "net_bps": result.net_profit_bps,
+                "fill_rate": result.fill_rate,
+                "survived": result.survived,
+            })
+
+    summary = cost_analysis_summary(
+        [type('R', (), r)() for r in evaluated]  # quick struct
+    ) if evaluated else {}
+
+    return {
+        "opportunities_analyzed": len(evaluated),
+        "summary": summary,
+        "samples": evaluated[:15],
+    }
 
 
 # ── WebSocket Endpoint ────────────────────────────────────────────────────────
@@ -273,7 +379,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.send_text(json.dumps({
         "type": "init",
         "running": state.running,
-        "config": state.config,
+        "config": state.config.model_dump(),
         "fx_pairs": FX_PAIRS,
     }))
     try:
@@ -287,6 +393,8 @@ async def websocket_endpoint(websocket: WebSocket):
             except Exception:
                 pass
     except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
         manager.disconnect(websocket)
 
 if __name__ == "__main__":

@@ -1,27 +1,30 @@
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { useMemo } from "react";
 
 interface Props {
   lossHistory: number[];
 }
 
 export function LossChart({ lossHistory }: Props) {
+  const data = useMemo(
+    () => lossHistory.map((v, i) => ({ step: i, loss: v })),
+    [lossHistory]
+  );
+
   if (lossHistory.length < 2) {
     return (
       <div className="empty-state">
-        <div className="empty-icon">🧠</div>
         <div className="empty-text">DQN training loss will appear once the replay buffer fills (64 samples).</div>
       </div>
     );
   }
-
-  const data = lossHistory.map((v, i) => ({ step: i, loss: v }));
 
   return (
     <div style={{ width: "100%", height: 280 }}>
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
           <defs>
-            <linearGradient id="lossGrad" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="lossGrad-unique" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor="#ff4d6d" stopOpacity={0.2} />
               <stop offset="95%" stopColor="#ff4d6d" stopOpacity={0.02} />
             </linearGradient>

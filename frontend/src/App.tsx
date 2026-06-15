@@ -1,34 +1,39 @@
 import { useState } from "react";
 import "./index.css";
-import { useWebSocket } from "./hooks/useWebSocket";
-import { HeroBanner }   from "./components/HeroBanner";
-import { ControlPanel } from "./components/ControlPanel";
-import { MetricCard }   from "./components/MetricCard";
-import { PnLChart }     from "./components/PnLChart";
-import { PriceChart }   from "./components/PriceChart";
-import { LossChart }    from "./components/LossChart";
-import { NetworkGraph } from "./components/NetworkGraph";
-import { ArbFeed }      from "./components/ArbFeed";
-import { AgentStats }   from "./components/AgentStats";
-import { TechStack }    from "./components/TechStack";
+import { useWebSocket }    from "./hooks/useWebSocket";
+import { ParticleBackground } from "./components/ParticleBackground";
+import { HeroBanner }      from "./components/HeroBanner";
+import { ControlPanel }    from "./components/ControlPanel";
+import { MetricCard }      from "./components/MetricCard";
+import { PnLChart }        from "./components/PnLChart";
+import { PriceChart }      from "./components/PriceChart";
+import { LossChart }       from "./components/LossChart";
+import { GlobeNetwork }    from "./components/GlobeNetwork";
+import { NetworkGraph }    from "./components/NetworkGraph";
+import { ArbFeed }         from "./components/ArbFeed";
+import { AgentStats }      from "./components/AgentStats";
 
-const TABS = ["PnL Curve", "Price Feed", "Network Graph", "Loss Curve"] as const;
+const TABS = ["3D Globe", "PnL Curve", "Price Feed", "2D Network", "Loss Curve"] as const;
 type Tab = typeof TABS[number];
 
 export default function App() {
   const {
-    connected, running, lastFrame, config,
-    startEngine, stopEngine, updateConfig,
+    connected, connectionStatus, running, lastFrame, config, error,
+    startEngine, stopEngine, updateConfig, clearError,
   } = useWebSocket();
 
-  const [activeTab, setActiveTab] = useState<Tab>("PnL Curve");
+  const [activeTab, setActiveTab] = useState<Tab>("3D Globe");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const metrics = lastFrame?.metrics ?? null;
   const pnl = metrics?.total_pnl ?? 0;
+  const isLive = running && connected;
 
   return (
     <>
-      {/* D3 tooltip — globally positioned */}
+      <ParticleBackground />
+
+      {/* D3 tooltip */}
       <div
         className="d3-tooltip"
         style={{
@@ -49,10 +54,21 @@ export default function App() {
       />
 
       <div className="app">
-        {/* ── Hero (full width) ── */}
-        <HeroBanner connected={connected} running={running} />
+        <HeroBanner
+          connected={connected}
+          running={running}
+          connectionStatus={connectionStatus}
+          uptime={metrics?.uptime}
+          onMenuToggle={() => setSidebarOpen(prev => !prev)}
+        />
 
-        {/* ── Sidebar ── */}
+        {error && (
+          <div className="error-banner">
+            <span>{error}</span>
+            <button onClick={clearError}>×</button>
+          </div>
+        )}
+
         <ControlPanel
           connected={connected}
           running={running}
@@ -60,9 +76,9 @@ export default function App() {
           onStart={startEngine}
           onStop={stopEngine}
           onConfigChange={updateConfig}
+          isOpen={sidebarOpen}
         />
 
-        {/* ── Main Content ── */}
         <main className="main-content">
 
           {/* Metric Cards */}
@@ -72,12 +88,14 @@ export default function App() {
               value={(metrics?.tick_count ?? 0).toLocaleString()}
               colorClass="blue"
               sub="market data points"
+              isLive={isLive}
             />
             <MetricCard
               label="Arb Detected"
               value={(metrics?.arb_detected ?? 0).toLocaleString()}
               colorClass="green"
               sub="opportunities found"
+              isLive={isLive && (metrics?.arb_detected ?? 0) > 0}
             />
             <MetricCard
               label="Total PnL"
@@ -100,7 +118,7 @@ export default function App() {
               sub="profitable trades"
             />
             <MetricCard
-              label="Epsilon (ε)"
+              label="Epsilon"
               value={(metrics?.epsilon ?? 1).toFixed(4)}
               colorClass="amber"
               sub="exploration rate"
@@ -109,7 +127,6 @@ export default function App() {
 
           {/* Dashboard grid: charts + feed */}
           <div className="dashboard-grid">
-            {/* Charts panel */}
             <div className="tabs">
               <div className="tab-list">
                 {TABS.map(tab => (
@@ -122,14 +139,21 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <div className="tab-panel">
+              <div className="tab-panel" style={activeTab === "3D Globe" ? { padding: 0, minHeight: 420 } : undefined}>
+                {activeTab === "3D Globe" && (
+                  <GlobeNetwork
+                    opportunities={lastFrame?.opportunities ?? []}
+                    prices={lastFrame?.prices ?? {}}
+                    tickCount={metrics?.tick_count ?? 0}
+                  />
+                )}
                 {activeTab === "PnL Curve" && (
                   <PnLChart pnlHistory={lastFrame?.pnl_history ?? []} />
                 )}
                 {activeTab === "Price Feed" && (
                   <PriceChart priceChart={lastFrame?.price_chart ?? {}} />
                 )}
-                {activeTab === "Network Graph" && (
+                {activeTab === "2D Network" && (
                   <NetworkGraph
                     opportunities={lastFrame?.opportunities ?? []}
                     prices={lastFrame?.prices ?? {}}
@@ -141,7 +165,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Arb feed */}
             <div className="glass-card" style={{ padding: 16 }}>
               <ArbFeed
                 arbLog={lastFrame?.arb_log ?? []}
@@ -159,9 +182,6 @@ export default function App() {
               position={lastFrame?.position ?? false}
             />
           </div>
-
-          {/* Tech Stack / Resume Section */}
-          <TechStack />
 
         </main>
       </div>
